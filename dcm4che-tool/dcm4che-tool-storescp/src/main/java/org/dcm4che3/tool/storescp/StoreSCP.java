@@ -70,14 +70,13 @@ import org.slf4j.LoggerFactory;
 
 /**
  * @author Gunter Zeilinger <gunterze@gmail.com>
- *
  */
 public class StoreSCP {
 
     private static final Logger LOG = LoggerFactory.getLogger(StoreSCP.class);
 
-    private static ResourceBundle rb =
-        ResourceBundle.getBundle("org.dcm4che3.tool.storescp.messages");
+    private static final ResourceBundle rb =
+            ResourceBundle.getBundle("org.dcm4che3.tool.storescp.messages");
     private static final String PART_EXT = ".part";
 
     private final Device device = new Device("storescp");
@@ -92,7 +91,7 @@ public class StoreSCP {
 
         @Override
         protected void store(Association as, PresentationContext pc,
-                Attributes rq, PDVInputStream data, Attributes rsp)
+                             Attributes rq, PDVInputStream data, Attributes rsp)
                 throws IOException {
             sleep(as, receiveDelays);
             try {
@@ -141,24 +140,27 @@ public class StoreSCP {
         ae.addConnection(conn);
     }
 
-    private void storeTo(Association as, Attributes fmi, 
-            PDVInputStream data, File file) throws IOException  {
+    private void storeTo(Association as, Attributes fmi,
+                         PDVInputStream data, File file) throws IOException {
         LOG.info("{}: M-WRITE {}", as, file);
         file.getParentFile().mkdirs();
-        DicomOutputStream out = new DicomOutputStream(file);
-        try {
-            out.writeFileMetaInformation(fmi);
-            data.copyTo(out);
-        } finally {
-            SafeClose.close(out);
+        {
+            DicomOutputStream out = new DicomOutputStream(file);
+            try {
+                out.writeFileMetaInformation(fmi);
+                data.copyTo(out);
+            } finally {
+                SafeClose.close(out);
+            }
         }
     }
 
     private static void renameTo(Association as, File from, File dest)
             throws IOException {
         LOG.info("{}: M-RENAME {} to {}", as, from, dest);
-        if (!dest.getParentFile().mkdirs())
-            dest.delete();
+        if (!dest.getParentFile().mkdirs()) {
+            FileDeletionUtil.safeDeleteFile(dest);
+        }
         if (!from.renameTo(dest))
             throw new IOException("Failed to rename " + from + " to " + dest);
     }
@@ -188,8 +190,9 @@ public class StoreSCP {
     }
 
     public void setStorageDirectory(File storageDir) {
-        if (storageDir != null)
-            storageDir.mkdirs();
+        if (storageDir != null) {
+            FileDeletionUtil.createStorageDirectory(storageDir);
+        }
         this.storageDir = storageDir;
     }
 
@@ -271,6 +274,11 @@ public class StoreSCP {
 
     public static void main(String[] args) {
         try {
+            File file = new File("");
+            String directoryName = file.getAbsoluteFile().toString();
+            System.out.println("Working Directory is: " + directoryName);
+            String classPath = System.getProperty("java.class.path");
+            System.out.println("当前类路径为: " + classPath);
             CommandLine cl = parseComandLine(args);
             StoreSCP main = new StoreSCP();
             CLIUtils.configureBindServer(main.conn, main.ae, cl);
@@ -281,7 +289,7 @@ public class StoreSCP {
             configureTransferCapability(main.ae, cl);
             configureStorageDirectory(main, cl);
             ExecutorService executorService = Executors.newCachedThreadPool();
-            ScheduledExecutorService scheduledExecutorService = 
+            ScheduledExecutorService scheduledExecutorService =
                     Executors.newSingleThreadScheduledExecutor();
             main.device.setScheduledExecutor(scheduledExecutorService);
             main.device.setExecutor(executorService);
@@ -291,8 +299,12 @@ public class StoreSCP {
             System.err.println(rb.getString("try"));
             System.exit(2);
         } catch (Exception e) {
-            System.err.println("storescp: " + e.getMessage());
-            e.printStackTrace();
+//            System.err.println("storescp: " + e.());
+            LOG.error(
+                    "storescp 配置错误", e.fillInStackTrace()
+            );
+            LOG.info("start storscp failed ", e);
+
             System.exit(2);
         }
     }
@@ -307,27 +319,28 @@ public class StoreSCP {
     }
 
     private static void configureTransferCapability(ApplicationEntity ae,
-            CommandLine cl) throws IOException {
+                                                    CommandLine cl) throws IOException {
         if (cl.hasOption("accept-unknown")) {
             ae.addTransferCapability(
-                    new TransferCapability(null, 
+                    new TransferCapability(null,
                             "*",
                             TransferCapability.Role.SCP,
                             "*"));
         } else {
-            Properties p = CLIUtils.loadProperties(
-                    cl.getOptionValue("sop-classes", 
-                            "resource:sop-classes.properties"),
-                    null);
+//            Properties p = CLIUtils.loadProperties(
+//                    cl.getOptionValue("sop-classes",
+//                            "resource:sop-classes.properties"),
+//                    null);
+            Properties p = CLIUtils.loadProperties("resource:sop-classes.properties", null);
             for (String cuid : p.stringPropertyNames()) {
                 String ts = p.getProperty(cuid);
                 TransferCapability tc = new TransferCapability(null,
-                        CLIUtils.toUID(cuid), 
+                        CLIUtils.toUID(cuid),
                         TransferCapability.Role.SCP,
                         CLIUtils.toUIDs(ts));
                 ae.addTransferCapability(tc);
             }
         }
-     }
+    }
 
 }
