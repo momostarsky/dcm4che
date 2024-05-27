@@ -119,6 +119,14 @@ public class StoreSCP {
             }
         }
 
+
+        @Override
+        public void onClose(Association as) {
+            LOG.info("onClose:{}::{}", as.getCalledAET(), as.getCallingAET());
+            super.onClose(as);
+
+        }
+
     };
 
     private void sleep(Association as, int[] delays) {
@@ -132,7 +140,7 @@ public class StoreSCP {
             }
     }
 
-    public StoreSCP() throws IOException {
+    public StoreSCP() {
         device.setDimseRQHandler(createServiceRegistry());
         device.addConnection(conn);
         device.addApplicationEntity(ae);
@@ -294,6 +302,7 @@ public class StoreSCP {
             main.device.setScheduledExecutor(scheduledExecutorService);
             main.device.setExecutor(executorService);
             main.device.bindConnections();
+
         } catch (ParseException e) {
             System.err.println("storescp: " + e.getMessage());
             System.err.println(rb.getString("try"));
@@ -327,10 +336,6 @@ public class StoreSCP {
                             TransferCapability.Role.SCP,
                             "*"));
         } else {
-//            Properties p = CLIUtils.loadProperties(
-//                    cl.getOptionValue("sop-classes",
-//                            "resource:sop-classes.properties"),
-//                    null);
             Properties p = CLIUtils.loadProperties("resource:sop-classes.properties", null);
             for (String cuid : p.stringPropertyNames()) {
                 String ts = p.getProperty(cuid);
